@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Smart Campus Safety - Monitoring Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-area">
+        <div class="brand-icon">📹</div>
+        <div class="brand-titles">
+          <h1>AI Smart Campus Safety</h1>
+          <span>Campus Monitoring Dashboard</span>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <span id="analysis-state-badge" class="safety-badge badge-yellow" style="margin-right: 0.5rem;">STANDBY</span>
+        <a href="/" class="nav-item active" id="nav-dashboard">Live Monitor</a>
+        <a href="/alerts" class="nav-item" id="nav-alerts">Alert History</a>
+        <button class="btn-header" id="btn-open-settings" onclick="openSettingsModal()">⚙️ Settings</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Content -->
+  <main class="main-content">
+
+    <!-- 1. Video Source & Control Section -->
+    <div class="section-card">
+      <div class="section-header">
+        <div class="section-title">
+          <span>📁</span> Video Source & Controls
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">
+          Supported formats: .mp4, .avi, .mov (Max 100MB)
+        </span>
+      </div>
+      <div class="section-body">
+        <div class="control-bar">
+          <!-- File selection -->
+          <div class="control-group-left">
+            <input type="file" id="video-file-input" accept=".mp4,.avi,.mov" style="display: none;" onchange="handleFileUpload(this)">
+            
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('video-file-input').click()">
+              Choose Video
+            </button>
+            
+            <button type="button" class="btn btn-secondary" onclick="loadSampleVideo()">
+              Use Sample Video
+            </button>
+
+            <div class="file-status-label">
+              Selected Video: <strong id="label-selected-video">campus.mp4</strong>
+            </div>
+          </div>
+
+          <!-- Playback controls -->
+          <div class="control-group-right">
+            <button type="button" class="btn btn-start" id="btn-start-analysis" onclick="startAnalysis()">
+              ▶ Start Analysis
+            </button>
+
+            <button type="button" class="btn btn-stop" id="btn-stop-analysis" onclick="stopAnalysis()" disabled>
+              ⏸ Stop
+            </button>
+
+            <button type="button" class="btn btn-reset" id="btn-reset-analysis" onclick="resetAnalysis()">
+              🔄 Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Four Statistics Cards -->
+    <section class="stats-grid">
+      <!-- Card 1: People Detected -->
+      <div class="stat-card" id="card-people">
+        <div class="stat-header">
+          <span class="stat-title">People Detected</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">👥</span>
+        </div>
+        <div class="stat-value" id="val-people-count">0</div>
+        <div class="stat-sub" id="sub-people-desc">Active tracked subjects</div>
+      </div>
+
+      <!-- Card 2: Crowd Level -->
+      <div class="stat-card" id="card-crowd">
+        <div class="stat-header">
+          <span class="stat-title">Crowd Level</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">📊</span>
+        </div>
+        <div class="stat-value" id="val-crowd-level" style="color: var(--color-green);">LOW</div>
+        <div class="stat-sub" id="sub-crowd-desc">Normal campus flow</div>
+      </div>
+
+      <!-- Card 3: Restricted Area -->
+      <div class="stat-card" id="card-restricted">
+        <div class="stat-header">
+          <span class="stat-title">Restricted Area</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">🛑</span>
+        </div>
+        <div class="stat-value" id="val-restricted-display" style="font-size: 1.35rem; color: var(--color-green);">CLEAR</div>
+        <div class="stat-sub" id="sub-restricted-desc">Perimeter boundary status</div>
+      </div>
+
+      <!-- Card 4: Movement Status -->
+      <div class="stat-card" id="card-movement">
+        <div class="stat-header">
+          <span class="stat-title">Movement Status</span>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">⚡</span>
+        </div>
+        <div class="stat-value" id="val-movement-display" style="font-size: 1.35rem; color: var(--color-green);">NORMAL</div>
+        <div class="stat-sub" id="sub-movement-desc">Velocity anomaly heuristic</div>
+      </div>
+    </section>
+
+    <!-- Hidden compatibility elements for system status & alert counter -->
+    <div style="display: none;">
+      <span id="val-active-alerts">0</span>
+      <span id="sub-alerts-desc"></span>
+      <span id="val-system-status">STANDBY</span>
+      <span id="sub-system-desc"></span>
+    </div>
+
+    <!-- 3. Main Split (Live Video Player + Sidebar) -->
+    <div class="dashboard-grid">
+
+      <!-- Left Column: Video Monitoring -->
+      <div class="section-card" style="margin-bottom: 0;">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🖥️</span> Video Monitoring Feed
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="live-badge" id="live-indicator-pill"><span class="pulse-dot"></span> LIVE</span>
+          </div>
+        </div>
+
+        <div class="section-body">
+          <!-- Video Frame Viewport -->
+          <div class="video-container">
+            <img src="{{ url_for('video_feed') }}" alt="AI Processed Video Stream" class="video-feed-img" id="live-stream-img" onerror="handleStreamError(this)">
+          </div>
+
+          <!-- Video Sub-bar -->
+          <div class="video-meta-bar">
+            <div>
+              <span id="meta-source-label">Source: campus.mp4</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+              <span>Resolution: 640 × 360</span>
+              <span id="meta-fps">0.0 FPS</span>
+            </div>
+          </div>
+
+          <!-- Safety Status Indicator Meters -->
+          <div class="safety-status-grid">
+            <div class="safety-metric-box">
+              <div class="safety-metric-label">Crowd Status</div>
+              <div class="safety-badge badge-green" id="badge-crowd-status">NORMAL</div>
+            </div>
+            <div class="safety-metric-box">
+              <div class="safety-metric-label">Movement Status</div>
+              <div class="safety-badge badge-green" id="badge-movement-status">NORMAL</div>
+            </div>
+            <div class="safety-metric-box">
+              <div class="safety-metric-label">Restricted Area</div>
+              <div class="safety-badge badge-green" id="badge-restricted-status">CLEAR</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Recent Alerts & System Information -->
+      <div class="sidebar-container">
+
+        <!-- Recent Alerts Card -->
+        <div class="section-card" style="margin-bottom: 0;">
+          <div class="section-header">
+            <div class="section-title">
+              <span>⚠️</span> Recent Alerts
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);" id="live-alert-count-label">0 Events</span>
+          </div>
+
+          <div class="section-body" style="padding: 0.75rem;">
+            <div class="alerts-feed-container" id="alerts-feed-container">
+              <div class="no-alerts" id="no-alerts-msg">
+                No active safety alerts.<br>Campus perimeter is clear.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Information Card -->
+        <div class="section-card" style="margin-bottom: 0;">
+          <div class="section-header">
+            <div class="section-title">
+              <span>ℹ️</span> System Information
+            </div>
+          </div>
+
+          <div class="section-body" style="padding: 0.75rem 1rem;">
+            <table class="sys-info-table">
+              <tbody>
+                <tr>
+                  <td>AI Model:</td>
+                  <td>YOLOv8n (CPU)</td>
+                </tr>
+                <tr>
+                  <td>Video Resolution:</td>
+                  <td>640 × 360 px</td>
+                </tr>
+                <tr>
+                  <td>Processing FPS:</td>
+                  <td id="info-fps">0.0 FPS</td>
+                </tr>
+                <tr>
+                  <td>Database:</td>
+                  <td>SQLite3 (WAL Mode)</td>
+                </tr>
+                <tr>
+                  <td>Source:</td>
+                  <td id="info-source">campus.mp4</td>
+                </tr>
+                <tr>
+                  <td>Status:</td>
+                  <td id="info-status">STANDBY</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Analysis Complete Summary Modal -->
+  <div class="modal-backdrop" id="analysis-complete-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Analysis Complete</h3>
+        <button class="close-btn" onclick="closeCompleteModal()">&times;</button>
+      </div>
+
+      <p style="font-size: 0.85rem; color: var(--text-muted);">
+        The video file analysis has finished. Here is the session summary report:
+      </p>
+
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-card-title">Video Name</div>
+          <div class="summary-card-val" id="summary-video-name" style="font-size: 0.95rem;">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-title">Frames / Duration</div>
+          <div class="summary-card-val" id="summary-duration" style="font-size: 0.95rem;">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-title">Peak People Detected</div>
+          <div class="summary-card-val" id="summary-max-people">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-title">Peak Crowd Level</div>
+          <div class="summary-card-val" id="summary-max-crowd">LOW</div>
+        </div>
+      </div>
+
+      <!-- Alerts Breakdown Box -->
+      <div style="background: var(--bg-card-muted); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: var(--radius-sm); margin-bottom: 1.25rem;">
+        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600;">
+          Total Alerts Generated: <strong id="summary-total-alerts" style="color: var(--color-red);">0</strong>
+        </div>
+        <ul style="font-size: 0.82rem; color: var(--text-main); list-style-type: none; padding-left: 0; line-height: 1.6;">
+          <li>Restricted Area Entries: <strong id="summary-restricted-alerts">0</strong></li>
+          <li>High Crowd Density Events: <strong id="summary-crowd-alerts">0</strong></li>
+          <li>Unusual Rapid Movements: <strong id="summary-movement-alerts">0</strong></li>
+        </ul>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.6rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeCompleteModal()">Close</button>
+        <button type="button" class="btn btn-primary" onclick="closeCompleteModal(); resetAnalysis();">Reset & Select Another</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Configuration Modal -->
+  <div class="modal-backdrop" id="settings-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>System Configuration</h3>
+        <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
+      </div>
+
+      <form id="settings-form" onsubmit="saveSettings(event)">
+        <!-- Crowd Settings -->
+        <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.5rem;">Crowd Density Limits</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cfg-crowd-low">Low Crowd Max (People)</label>
+            <input type="number" id="cfg-crowd-low" class="form-control" min="1" max="100" value="5" required>
+          </div>
+          <div class="form-group">
+            <label for="cfg-crowd-med">Medium Crowd Max (People)</label>
+            <input type="number" id="cfg-crowd-med" class="form-control" min="2" max="200" value="12" required>
+          </div>
+        </div>
+
+        <!-- Restricted Area ROI [x1, y1, x2, y2] -->
+        <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin: 0.75rem 0 0.5rem 0;">Restricted Area Coordinates [X1, Y1, X2, Y2]</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>X1 (Left)</label>
+            <input type="number" id="cfg-roi-x1" class="form-control" value="420" required>
+          </div>
+          <div class="form-group">
+            <label>Y1 (Top)</label>
+            <input type="number" id="cfg-roi-y1" class="form-control" value="40" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>X2 (Right)</label>
+            <input type="number" id="cfg-roi-x2" class="form-control" value="620" required>
+          </div>
+          <div class="form-group">
+            <label>Y2 (Bottom)</label>
+            <input type="number" id="cfg-roi-y2" class="form-control" value="240" required>
+          </div>
+        </div>
+
+        <!-- Rapid Movement Settings -->
+        <div style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin: 0.75rem 0 0.5rem 0;">Movement Anomaly Detection</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cfg-speed">Speed Threshold (px/frame)</label>
+            <input type="number" step="0.5" id="cfg-speed" class="form-control" min="5" max="100" value="28" required>
+          </div>
+          <div class="form-group">
+            <label for="cfg-frames">Consecutive Frames Req.</label>
+            <input type="number" id="cfg-frames" class="form-control" min="1" max="20" value="3" required>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+          <button type="submit" class="btn btn-start">Save Configuration</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>AI Smart Campus Safety & Monitoring System &bull; B.Tech Final Year Academic Project &bull; Department of Computer Science & Engineering</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
